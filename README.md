@@ -1,4 +1,5 @@
-# de-dupe [![Build Status](https://magnum.travis-ci.com/Day8/cljs-structural-caching.svg?token=ZxqzShvq5GKw1TUp9DLf&branch=master)](https://magnum.travis-ci.com/Day8/cljs-structural-caching)
+# de-dupe [![Build Status](https://travis-ci.org/Day8/de-dupe.svg?branch=master)](https://travis-ci.org/Day8/de-dupe)
+
 
 ## Purpose
 
