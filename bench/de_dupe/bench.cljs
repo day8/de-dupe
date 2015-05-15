@@ -1,5 +1,3 @@
-;; run this with phantomjs
-
 (ns de-dupe.test.core
   (:require [de-dupe.core :as dd]
             [clojure.walk :refer [prewalk]]))
