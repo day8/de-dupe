@@ -1,30 +1,60 @@
 # de-dupe [![Build Status](https://travis-ci.org/Day8/de-dupe.svg?branch=master)](https://travis-ci.org/Day8/de-dupe)
 
+# The Problem
 
-## Purpose
+Clojure Data Structures use structural sharing to create an efficient in-memory representation, but these same structures can be a problem to serialize/deserialize. 
 
-The efficient representation for serialization of (immutable persistent) data structures with a lot of structural sharing (objects that are identical and referred to in different places in the data)
+**First**, the shared parts are duplicated in the serialised output which can lead to a large and inefficient representation.
 
-## The Problem it Solves
+**Second**, when the process is reversed,  deserialization doesn't recreate the original, shared, effcient in-memory representation because sharing information was lost in the original serialisation.
 
+## The Solution Provided
 
-When serialising a structure containing N references to the one sub-structure, you do NOT want that sub-structure to appear N times in the output.  That's very inefficient.  
+This library "de-duplicates" persistent datastrcutures so they can be more efficiently serialised.
 
-Instead, you want such a sub-structure to appear just once. But you want to do that in a way that allows the original structure to be deserialised correctly.
+It provides two functions `de-dupe` and `expand`.
 
-## Intended use
+`de-dupe` takes a data structure, `ds`, and it returns a hash-map, which maps "tokens" (ids) to duplicated sub-nodes. The item with token `cache-0` represents the root of `ds`.
 
-    =>(use 'de-dupe.core :refer [create-cache])
-    =>(def compressed (create-cache some-data))
-    =>(= (.decompress compressed) some-data)
-    true
+Having used `de-dupe`, you are expected to then serialise the the hash-map using whatever method makes sense to your usecase - perhaps [transit](https://github.com/cognitect/transit-cljs); or serilization with `edn`.  So `de-dupe` is a pre-processor for use before transit.
+
+Later, `expand` can be used to reverse the process - you give it a hash-map and it reforms the original, sharing and all. 
+
+## Usage
+
+Add this dependency to your project.clj
+```
+[de-dupe "0.2.1"]
+```
+
+Then add this requirement to your cljs file:
+```
+(:require [de-dupe.core :refer [de-dupe expand]])
+```
+
+The default behaviour is to only recognize duplicates when they compare
+with `identical?`
+
+```
+(def compressed (de-dupe some-data))
+;if you now compare 
+;(count (prn-str compressed)) and (count (prn-str some-data))
+;you will see the degree of comparision
+
+;to recover your original data
+(def some-data2 (expand compressed))
+```
 
 If you want to de-dupe items that are not identical (i.e the same object reference)
+```
+(def compressed (de-dupe-eq some-data))
+;if you now compare 
+;(count (prn-str compressed)) and (count (prn-str some-data))
+;you will see the degree of comparision it will be greater than de-dupe
 
-    =>(use 'de-dupe.core :refer [create-eq-cache])
-    =>(def compressed (create-eq-cache some-data))
-    =>(= (.decompress compressed) some-data)
-    true
+;to recover your original data
+(def some-data2 (expand compressed))
+```
 
 ## How it works
 

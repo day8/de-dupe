@@ -27,12 +27,12 @@
   [element]
   "tests is an item is a cache tag"
   (if-let [m-data (meta element)] 
-    (:cache m-data)
+    (::cache m-data)
     false))
 
 (defn make-cache-element
   [id]
-  (with-meta (symbol (str "cache-" id)) {:cache true}))
+  (with-meta (symbol (str "cache-" id)) {::cache true}))
 
 (defn map-from-seq
   [seq]
@@ -84,13 +84,10 @@
                         [key value])))]
           (recur decompressed-cache new-cache))))))
 
-(defrecord DeDupeCache [cache message]
-  Object
-  (decompress 
-    [_]
-    (postwalk-replace 
-      (decompress-cache cache)
-      message)))
+(defn expand
+  "This is the API function to take a cache of elements and expand them"
+  [cache]
+  ((decompress-cache cache) (make-cache-element 0)))
 
 (def js-counter 1)
 
@@ -157,19 +154,16 @@
               [(symbol key) (aget compressed-cache key)]))
       js-values])))
 
-(defn create-cache
-  "create an efficient representation for serialization of (immutable persistent) 
+(defn de-dupe
+  "API create an efficient representation for serialization of (immutable persistent) 
    data structures with a lot of structural sharing (uses identical? for comparison"
-  [message]
-  (let [[message cache values]
-        (create-cache-internal message)]
-    (DeDupeCache. cache message)))
+  [form]
+  (let [[message cache values] (create-cache-internal form)]
+    cache))
 
-(defn create-eq-cache
-  "create an efficient representation for serialization of 
+(defn de-dupe-eq
+  "API create an efficient representation for serialization of 
    data structures with a lot of shared data (uses = for comparison)"
-  [message]
-  ;; dedupe using =
-  (let [[message cache values]
-        (create-cache-internal message hash)]
-    (DeDupeCache. cache message)))
+  [form]
+  (let [[message cache values] (create-cache-internal form hash)]
+    cache))

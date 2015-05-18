@@ -1,81 +1,69 @@
 (ns de-dupe.test.core
-  (:require [cemerick.cljs.test :as test :refer-macros [deftest is run-tests testing]]
-            [de-dupe.core :as sc :refer [DeDupeCache
-                                         create-cache
-                                         create-eq-cache
-                                         decompress-cache
-                                         make-cache-element]]))
+  (:require [cemerick.cljs.test :as test :refer-macros [deftest is 
+                                                        run-tests testing]]
+            [de-dupe.core :as sc :refer [decompress-cache
+                                         make-cache-element
+                                         expand
+                                         de-dupe
+                                         de-dupe-eq]]))
 
 (enable-console-print!)
 
 (deftest test-read-cache
   (testing "Testing reading cached items"
-    (let [zero-cache (DeDupeCache. {} "hello")
-          simple-cache (DeDupeCache. {(make-cache-element 0) "hello"} 
-                                     [(make-cache-element 0)])
-          ]
-      (is (= (.decompress zero-cache) "hello"))
-      (is (= (.decompress simple-cache) ["hello"])))
-    (is (= (.decompress (DeDupeCache. 
-                          {(make-cache-element 0) "hello"}
-                          [(make-cache-element 0) "goodbye"]))
+    (let [zero-cache {(make-cache-element 0) "hello"}
+          simple-cache {(make-cache-element 0) ["hello"]}]
+      (is (= (expand zero-cache) "hello"))
+      (is (= (expand simple-cache) ["hello"])))
+    (is (= (expand {(make-cache-element 1) "hello"
+                    (make-cache-element 0) [(make-cache-element 1) "goodbye"]})
            ["hello" "goodbye"]))
-    (is (= (.decompress (DeDupeCache. 
-                          {(make-cache-element 0) "hello" 
-                           (make-cache-element 1) {:a-keyword (make-cache-element 0)}}
-                          [(make-cache-element 1) "goodbye"]))
+    (is (= (expand {(make-cache-element 2) "hello" 
+                    (make-cache-element 1) {:a-keyword (make-cache-element 2)}
+                    (make-cache-element 0)  [(make-cache-element 1) "goodbye"]})
            [{:a-keyword "hello"} "goodbye"]))
     ))
 
 
 (deftest test-write-cache
   (testing "Testing that we can create a cache object"
-    (is (= (create-cache "hello") 
-           (DeDupeCache. {(make-cache-element 0) "hello"} 
-                         (make-cache-element 0))))
-    (is (= (create-cache ["hello"]) 
-           (DeDupeCache. {(make-cache-element 0) ["hello"]} 
-                         (make-cache-element 0))))
+    (is (= (de-dupe "hello") {(make-cache-element 0) "hello"}))
+    (is (= (de-dupe ["hello"]) {(make-cache-element 0) ["hello"]}))
     (let [hello-vec ["hello"]]
-      (is (= (create-cache [hello-vec]) 
-             (DeDupeCache. {(make-cache-element 1) hello-vec
-                            (make-cache-element 0) [(make-cache-element 1)]} 
-                           (make-cache-element 0))))
-      (is (= (create-cache [hello-vec ["hello"]]) 
-             (DeDupeCache. {(make-cache-element 1) hello-vec
-                            (make-cache-element 2) ["hello"]
-                            (make-cache-element 0) [(make-cache-element 1) (make-cache-element 2)]} 
-                           (make-cache-element 0))))
-      (is (= (create-eq-cache [hello-vec ["hello"]]) 
-             (DeDupeCache. {(make-cache-element 1) hello-vec
-                            (make-cache-element 0) [(make-cache-element 1) (make-cache-element 1)]} 
-                           (make-cache-element 0))))
-      (is (= (create-cache [hello-vec ["hello"]]) 
-             (DeDupeCache. {(make-cache-element 1) hello-vec
-                            (make-cache-element 2) ["hello"]
-                            (make-cache-element 0) [(make-cache-element 1) (make-cache-element 2)]} 
-                           (make-cache-element 0))))
-      (is (= (create-cache [hello-vec hello-vec]) 
-             (DeDupeCache. {(make-cache-element 1) hello-vec
-                            (make-cache-element 0) 
-                            [(make-cache-element 1) (make-cache-element 1)]} 
-                           (make-cache-element 0))))
-      (is (= (create-cache {hello-vec hello-vec}) 
-             (DeDupeCache. {(make-cache-element 1) hello-vec 
-                            (make-cache-element 0) 
-                            {(make-cache-element 1) (make-cache-element 1)}} 
-                           (make-cache-element 0)))))
+      (is (= (de-dupe [hello-vec]) 
+             {(make-cache-element 1) hello-vec
+              (make-cache-element 0) [(make-cache-element 1)]}))
+      (is (= (de-dupe [hello-vec ["hello"]]) 
+             {(make-cache-element 1) hello-vec
+              (make-cache-element 2) ["hello"]
+              (make-cache-element 0) [(make-cache-element 1) 
+                                      (make-cache-element 2)]}))
+      (is (= (de-dupe-eq [hello-vec ["hello"]]) 
+             {(make-cache-element 1) hello-vec
+              (make-cache-element 0) [(make-cache-element 1) 
+                                      (make-cache-element 1)]}))
+      (is (= (de-dupe [hello-vec ["hello"]]) 
+             {(make-cache-element 1) hello-vec
+              (make-cache-element 2) ["hello"]
+              (make-cache-element 0) [(make-cache-element 1) 
+                                      (make-cache-element 2)]}))
+      (is (= (de-dupe [hello-vec hello-vec]) 
+             {(make-cache-element 1) hello-vec
+              (make-cache-element 0) [(make-cache-element 1) 
+                                      (make-cache-element 1)]}))
+      (is (= (de-dupe {hello-vec hello-vec}) 
+             {(make-cache-element 1) hello-vec 
+              (make-cache-element 0) {(make-cache-element 1) 
+                                      (make-cache-element 1)}})))
     (let [triple-hello ["hello" "hello" "hello"]]
-      (is (= (create-cache [triple-hello triple-hello]) 
-             (DeDupeCache. {(make-cache-element 1) triple-hello 
-                            (make-cache-element 0) 
-                            [(make-cache-element 1) (make-cache-element 1)]
-                            } 
-                           (make-cache-element 0)))))
+      (is (= (de-dupe [triple-hello triple-hello]) 
+              {(make-cache-element 1) triple-hello 
+                            (make-cache-element 0) [(make-cache-element 1) 
+                                                    (make-cache-element 1)]})))
     ))
 
 (deftest test-decompress-cache
-  (testing "Testing that we can create a cache object"
+  (testing "Testing that we can decompress a cache object"
     (is (= (decompress-cache {(make-cache-element 1) "hello" 
                               (make-cache-element 0) 
                               [(make-cache-element 1) (make-cache-element 1)]})
@@ -84,7 +72,7 @@
             ["hello" "hello"]}))))
 
 (defn round-trip [x]
-  (.decompress (create-cache x)))
+  (expand (de-dupe x)))
 
 (defn round-trip-test [x]
   (= x (round-trip x)))
@@ -93,7 +81,7 @@
 
 (deftest test-round-trip
   (testing "Items can be roundtriped"
-    (is (= (.decompress (create-cache {"hello" "hello"})) 
+    (is (= (expand (de-dupe {"hello" "hello"})) 
            {"hello" "hello"}))
     (is (round-trip-test {:a 1 :b 2 :c 3}))
     (is (round-trip-test {:a 1 :b 2 :c [1 2]}))
