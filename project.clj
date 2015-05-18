@@ -1,4 +1,4 @@
-(defproject de-dupe "0.2.1"
+(defproject de-dupe "0.2.2"
   :description "Creates an efficient representation for serialization of (immutable persistent) data structures 
                with a lot of structural sharing (objects that are identical and referred to in different 
                places in the data)"

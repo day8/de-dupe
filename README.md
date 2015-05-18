@@ -2,7 +2,7 @@
 
 # The Problem
 
-Clojure Data Structures use structural sharing to create an efficient in-memory representation, but these same structures can be a problem to serialize/deserialize. 
+Persistent Data Structures use structural sharing to create an efficient in-memory representation, but these same structures can be a problem to serialize/deserialize. 
 
 **First**, the shared parts are duplicated in the serialised output which can lead to a large and inefficient representation.
 
@@ -10,11 +10,11 @@ Clojure Data Structures use structural sharing to create an efficient in-memory 
 
 ## The Solution Provided
 
-This library "de-duplicates" persistent datastrcutures so they can be more efficiently serialised.
+This library "de-duplicates" persistent datastructures so they can be more efficiently serialised.
 
 It provides two functions `de-dupe` and `expand`.
 
-`de-dupe` takes a data structure, `ds`, and it returns a hash-map, which maps "tokens" (ids) to duplicated sub-nodes. The item with token `cache-0` represents the root of `ds`.
+`de-dupe` takes a persistent data structure, `pds`, and it returns a hash-map, which maps "tokens" (ids) to duplicated sub-nodes. The item with token `cache-0` represents the root of `pds`.
 
 Having used `de-dupe`, you are expected to then serialise the the hash-map using whatever method makes sense to your usecase - perhaps [transit](https://github.com/cognitect/transit-cljs); or serilization with `edn`.  So `de-dupe` is a pre-processor for use before transit.
 
@@ -24,7 +24,7 @@ Later, `expand` can be used to reverse the process - you give it a hash-map and 
 
 Add this dependency to your project.clj
 ```
-[de-dupe "0.2.1"]
+[de-dupe "0.2.2"]
 ```
 
 Then add this requirement to your cljs file:
@@ -37,30 +37,24 @@ with `identical?`
 
 ```
 (def compressed (de-dupe some-data))
-;if you now compare 
-;(count (prn-str compressed)) and (count (prn-str some-data))
-;you will see the degree of comparision
+;  if you now compare 
+;  (count (prn-str compressed)) and (count (prn-str some-data))
+;  you will see the degree of comparision
 
-;to recover your original data
+;  to recover your original data
 (def some-data2 (expand compressed))
 ```
 
 If you want to de-dupe items that are not identical (i.e the same object reference)
 ```
 (def compressed (de-dupe-eq some-data))
-;if you now compare 
-;(count (prn-str compressed)) and (count (prn-str some-data))
-;you will see the degree of comparision it will be greater than de-dupe
+;  if you now compare 
+;  (count (prn-str compressed)) and (count (prn-str some-data))
+;  you will see the degree of comparision it will be greater than de-dupe
 
-;to recover your original data
+;  to recover your original data
 (def some-data2 (expand compressed))
 ```
-
-## How it works
-
-Its a form of dictionary compression.  The shared structures are identified and extracted from the overall data structure  (put in a dictionary) . The result is two data strcutures - the original data strcuture with all sharing removed, and a dictionary of all the shared structures. 
-
-You can then serialise that pair in whatever way you want;  to string?  Using transit?  Etc. When it comes time to de-serialise, you provide the pair to "de-dupe" and it will return to you the original data structure.
 
 ## State of play
 
@@ -77,6 +71,10 @@ number of elements in the map increases. As this implementation uses js/Map you 
 * This implementation by default will consider two objects as different if (identical? x y) returns false. This is to save time computing the hash of the objects to check for equality. Use de-dupe/create-eq-cache for de-duplication for non-identical structures.
 
 ## Implementation details
+
+Its a form of dictionary compression. The shared structures are identified and extracted from the overall data structure, and then added to the result hash-map. 
+The result hash-map also contains a represenation of the root note of the `pds`.
+
 This implementation uses a special version of clojure.walk which keeps track of both the original form (or more correctly that returned from the inner function), and the newly modified form from the outer function.
 
 This makes it possible in the prewalk phase (stepping down the tree from root to leaf) to cache all the forms in a js/Map (from now on referred to as the 'values' cache, this is mutable). In addition the key generated for the values cache (itself just a cljs symbol) is added to the metadata of the form. 
