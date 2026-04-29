@@ -58,16 +58,14 @@ If you want to de-dupe items that are not identical (i.e the same object referen
 
 ## State of play
 
-This Library is ok for speed at the moment but can maybe can benefit from more optimisation.
+The implementation chooses smaller serialized output and faster expansion over the fastest possible compression. It first identifies repeated structures so unique child values can stay inline, and expansion memoizes cache entries so each one is rebuilt once. The consequence of these tradeoffs is much smaller output and much faster `expand`, but slower compression. Run `npm run bench` to see the current size ratios and timings.
 
-Hash seems to take a big chunk of time but if we use the ECMA 6 (Harmony) (js/Map.)
-which tests by identity, the time taken does not reduce. This may be because the 
-number of elements in the map increases. As this implementation uses `js/Map`, you will need to run it on a JavaScript runtime which implements `Map.has`, `Map.get`, and `Map.set`.
+As this implementation uses `js/Map`, you will need to run it on a JavaScript runtime which implements `Map.has`, `Map.get`, and `Map.set`.
 
 ## Limitations
 
 * This implementation can only cache things that can have metadata attached to them during compression (lists, sets, vectors, maps).
-* This implementation caches everthing it can, even if the value is only used once it will be cached, which means that the decompression phase will always take longer than it should.
+* This implementation only extracts cacheable values that repeat. Unique values stay inline.
 * This implementation by default will consider two objects as different if `(identical? x y)` returns false. This is to save time computing hashes of objects to check for equality. Use `de-dupe-eq` for de-duplication of equal but non-identical structures.
 
 ## Implementation details
