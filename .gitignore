@@ -7,3 +7,8 @@ pom.xml
 .lein-deps-sum
 .lein-repl-history
 .lein-plugins/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
