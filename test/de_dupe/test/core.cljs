@@ -4,6 +4,7 @@
                                                run-tests testing]]
             [de-dupe.core :as sc :refer [decompress-cache
                                          make-cache-element
+                                         contains-compressed-elements?
                                          create-cache-internal
                                          expand
                                          de-dupe
@@ -32,23 +33,16 @@
     (is (= (de-dupe "hello") {(make-cache-element 0) "hello"}))
     (is (= (de-dupe ["hello"]) {(make-cache-element 0) ["hello"]}))
     (let [hello-vec ["hello"]]
-      (is (= (de-dupe [hello-vec]) 
-             {(make-cache-element 1) hello-vec
-              (make-cache-element 0) [(make-cache-element 1)]}))
-      (is (= (de-dupe [hello-vec ["hello"]]) 
-             {(make-cache-element 1) hello-vec
-              (make-cache-element 2) ["hello"]
-              (make-cache-element 0) [(make-cache-element 1) 
-                                      (make-cache-element 2)]}))
+      (is (= (de-dupe [hello-vec])
+             {(make-cache-element 0) [hello-vec]}))
+      (is (= (de-dupe [hello-vec ["hello"]])
+             {(make-cache-element 0) [hello-vec ["hello"]]}))
       (is (= (de-dupe-eq [hello-vec ["hello"]]) 
              {(make-cache-element 1) hello-vec
               (make-cache-element 0) [(make-cache-element 1) 
                                       (make-cache-element 1)]}))
-      (is (= (de-dupe [hello-vec ["hello"]]) 
-             {(make-cache-element 1) hello-vec
-              (make-cache-element 2) ["hello"]
-              (make-cache-element 0) [(make-cache-element 1) 
-                                      (make-cache-element 2)]}))
+      (is (= (de-dupe [hello-vec ["hello"]])
+             {(make-cache-element 0) [hello-vec ["hello"]]}))
       (is (= (de-dupe [hello-vec hello-vec]) 
              {(make-cache-element 1) hello-vec
               (make-cache-element 0) [(make-cache-element 1) 
@@ -64,6 +58,21 @@
                                                     (make-cache-element 1)]})))
     ))
 
+(deftest test-repeated-only-extraction
+  (testing "Unique child structures stay inline and repeated structures are extracted"
+    (let [shared {:shared [1 2 3]}
+          value {:unique-a {:a 1}
+                 :unique-b {:b 2}
+                 :shared-a shared
+                 :shared-b shared}
+          cache (de-dupe value)]
+      (is (= 3 (count cache)))
+      (is (= (make-cache-element 1) (get-in cache [(make-cache-element 0) :shared-a])))
+      (is (= (make-cache-element 1) (get-in cache [(make-cache-element 0) :shared-b])))
+      (is (= (make-cache-element 2) (get-in cache [(make-cache-element 1) :shared])))
+      (is (= {:a 1} (get-in cache [(make-cache-element 0) :unique-a])))
+      (is (= {:b 2} (get-in cache [(make-cache-element 0) :unique-b]))))))
+
 (deftest test-decompress-cache
   (testing "Testing that we can decompress a cache object"
     (is (= (decompress-cache {(make-cache-element 1) "hello" 
@@ -72,6 +81,11 @@
            {(make-cache-element 1) "hello" 
             (make-cache-element 0) 
             ["hello" "hello"]}))))
+
+(deftest test-cache-token-detection
+  (testing "Cache-token detection is recursive and does not match normal symbols"
+    (is (contains-compressed-elements? {:a [{:b (make-cache-element 1)}]}))
+    (is (not (contains-compressed-elements? {:a ['cache-1 'cache-2]})))))
 
 (defn round-trip [x]
   (expand (de-dupe x)))

@@ -1,5 +1,4 @@
-(ns de-dupe.core
-  (:require [clojure.walk :refer [postwalk-replace]]))
+(ns de-dupe.core)
 
 ;; (repl/connect "http://localhost:9000/repl")
 
@@ -40,11 +39,10 @@
 
 (defn contains-compressed-elements?
   [value]
-  (if (and (coll? value)
-           (some is-cache-element? 
-                 (flatten (seq value))))
-    true
-    false))
+  (cond
+    (is-cache-element? value) true
+    (coll? value) (boolean (some contains-compressed-elements? value))
+    :else false))
 
 (defn partition-decompressed-elements
   [cache]
@@ -65,23 +63,26 @@
 
 (defn decompress-cache
   [cache]
-  (loop [decompressed-cache {}
-         cache cache]
-    (let [[new-decompressed cache] (partition-decompressed-elements cache)
-          decompressed-cache (merge decompressed-cache new-decompressed)]
-      (if (empty? cache)
-        decompressed-cache
-        (let [new-cache
-              (into {}
-                    (for [[key value] cache]
-                      (let [decompressed-value
-                            (postwalk-replace decompressed-cache value)
-                            value (if (contains-compressed-elements?
-                                        decompressed-value)
-                                    value
-                                    decompressed-value)]
-                        [key value])))]
-          (recur decompressed-cache new-cache))))))
+  (let [expanded (atom {})]
+    (letfn [(expand-value [value]
+              (cond
+                (is-cache-element? value) (expand-entry value)
+                (list? value) (apply list (map expand-value value))
+                (satisfies? IMapEntry value) (vec (map expand-value value))
+                (seq? value) (doall (map expand-value value))
+                (satisfies? IRecord value) (reduce (fn [r x] (conj r (expand-value x))) value value)
+                (coll? value) (into (empty value) (map expand-value value))
+                :else value))
+            (expand-entry [cache-id]
+              (if (contains? @expanded cache-id)
+                (@expanded cache-id)
+                (let [value (get cache cache-id)
+                      expanded-value (expand-value value)]
+                  (swap! expanded assoc cache-id expanded-value)
+                  expanded-value)))]
+      (into {}
+            (for [cache-id (keys cache)]
+              [cache-id (expand-entry cache-id)])))))
 
 (defn expand
   "This is the API function to take a cache of elements and expand them"
@@ -114,24 +115,69 @@
 
 (defn side-prewalk
   [inner outer form]
-  (side-walk (partial side-prewalk inner outer) 
-             outer 
+  (side-walk (partial side-prewalk inner outer)
+             outer
              (inner form)))
 
 (defn cachable?
   "Determines if we can cache an element"
   [element]
   (and
-    (not 
+    (not
       (or (and (vector? element)
                (= 2 (count element)))
           (number? element)
           (keyword? element)
           (string? element)))
-    (or  
+    (or
       (list? element)
       (seq? element)
       (coll? element))))
+
+(defn find-count-entry
+  [bucket element equivalent?]
+  (some (fn [entry]
+          (when (equivalent? (:element entry) element)
+            entry))
+        bucket))
+
+(defn inc-count-entry
+  [entry]
+  (update entry :count inc))
+
+(defn count-cacheable-element!
+  [js-values hash-fn equivalent? element]
+  (let [hash (hash-fn element)
+        bucket (or (.get js-values hash) [])]
+    (if-let [entry (find-count-entry bucket element equivalent?)]
+      (.set js-values hash (mapv (fn [bucket-entry]
+                                   (if (identical? bucket-entry entry)
+                                     (inc-count-entry bucket-entry)
+                                     bucket-entry))
+                                 bucket))
+      (.set js-values hash (conj bucket {:element element :count 1})))))
+
+(defn repeated-cacheable?
+  [js-values hash-fn equivalent? element]
+  (let [hash (hash-fn element)
+        bucket (or (.get js-values hash) [])]
+    (boolean
+      (some (fn [{candidate :element :keys [count]}]
+              (and (< 1 count)
+                   (equivalent? element candidate)))
+            bucket))))
+
+(defn count-cacheable-elements
+  [form hash-fn equivalent?]
+  (let [js-values (js/Map.)]
+    (side-prewalk (fn [element]
+                    (when (and (not (identical? element form))
+                               (cachable? element))
+                      (count-cacheable-element! js-values hash-fn equivalent? element))
+                    element)
+                  (fn [_org-element element] element)
+                  form)
+    js-values))
 
 (defn create-cache-internal
   ([form]
@@ -139,20 +185,24 @@
   ([form hash-fn equivalent?]
    (set! cache-id-counter 1)
    (let [compressed-cache (atom {})
-         js-values (js/Map.)        
+         candidate-counts (count-cacheable-elements form hash-fn equivalent?)
+         js-values (js/Map.)
          process-element (fn [element]
                            ; don't cache cache elements or [key value] pairs
                            (if (or (identical? element form)
-                                   (not (cachable? element)))
+                                   (not (cachable? element))
+                                   (not (repeated-cacheable? candidate-counts hash-fn equivalent? element)))
                              element
                              (check-in-cache element js-values hash-fn equivalent?)))
          outer-fn      (fn [org-element element]
                          (if (and (cachable? org-element)
                                   (not (identical? org-element form)))
                            (let [id (:cache-id (meta org-element))]
-                             (when (not (nil? id))
-                               (swap! compressed-cache assoc id element)
-                               id))
+                             (if (not (nil? id))
+                               (do
+                                 (swap! compressed-cache assoc id element)
+                                 id)
+                               element))
                            element))
          cache-0       (side-prewalk process-element outer-fn form)]
      ; (print "compressed-cache" compressed-cache)

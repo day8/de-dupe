@@ -108,6 +108,6 @@ To run the benchmark with Node:
 
 ## License
 
-Copyright © 2015 Michael Thompson
+Copyright © 2015-2026 Michael Thompson
 
 Distributed under The MIT License (MIT) - See LICENSE.txt
