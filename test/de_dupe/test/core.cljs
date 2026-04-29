@@ -1,8 +1,10 @@
 (ns de-dupe.test.core
-  (:require [cemerick.cljs.test :as test :refer-macros [deftest is 
-                                                        run-tests testing]]
+  (:require [cljs.reader :as reader]
+            [cljs.test :as test :refer-macros [deftest is
+                                               run-tests testing]]
             [de-dupe.core :as sc :refer [decompress-cache
                                          make-cache-element
+                                         create-cache-internal
                                          expand
                                          de-dupe
                                          de-dupe-eq]]))
@@ -74,6 +76,9 @@
 (defn round-trip [x]
   (expand (de-dupe x)))
 
+(defn serialized-round-trip [x]
+  (expand (reader/read-string (pr-str (de-dupe x)))))
+
 (defn round-trip-test [x]
   (= x (round-trip x)))
 
@@ -90,6 +95,29 @@
     (is (round-trip-test (list* (doall (range 4)))))
     (is (round-trip-test '(0 1 2 3)))
     ))
+
+(deftest test-serialized-round-trip
+  (testing "Cache tokens survive printed serialization"
+    (let [shared {:a 1 :b [2 3]}
+          value {:left shared :right shared}
+          after (serialized-round-trip value)]
+      (is (= value after))
+      (is (identical? (:left after) (:right after)))))
+  (testing "User symbols that look like old cache ids are data, not tokens"
+    (is (= '[cache-1 cache-2]
+           (serialized-round-trip '[cache-1 cache-2])))))
+
+(deftest test-eq-cache-hash-collisions
+  (testing "de-dupe-eq logic handles unequal values with the same hash"
+    (let [a {:a 1}
+          b {:b 2}
+          value [a b a b]
+          [_ cache _] (create-cache-internal value (constantly 0) =)
+          after (expand cache)]
+      (is (= value after))
+      (is (identical? (nth after 0) (nth after 2)))
+      (is (identical? (nth after 1) (nth after 3)))
+      (is (not (identical? (nth after 0) (nth after 1)))))))
 
 (deftest identity-check
   (testing "see if structural identity is preserved"
@@ -108,4 +136,9 @@
       (is (identical? (:1 x2-after) (get-in x2-after [:3 :a 0])))
       )))
 
-(run-tests)
+(defn -main [& _args]
+  (let [summary (run-tests 'de-dupe.test.core)]
+    (when-not (test/successful? summary)
+      (set! js/process.exitCode 1))))
+
+(set! *main-cli-fn* -main)

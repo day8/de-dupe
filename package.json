@@ -1,0 +1,9 @@
+{
+  "name": "de-dupe",
+  "version": "0.2.2",
+  "private": true,
+  "scripts": {
+    "test": "clojure -M:test",
+    "bench": "clojure -M:compile-bench && node target/bench/de-dupe-bench.js"
+  }
+}

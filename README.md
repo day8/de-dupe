@@ -1,4 +1,4 @@
-# de-dupe [![Build Status](https://travis-ci.org/Day8/de-dupe.svg?branch=master)](https://travis-ci.org/Day8/de-dupe)
+# de-dupe
 
 # The Problem
 
@@ -12,11 +12,11 @@ Persistent Data Structures use structural sharing to create an efficient in-memo
 
 This library "de-duplicates" persistent datastructures so they can be more efficiently serialised.
 
-It provides two functions `de-dupe` and `expand`.
+It provides `de-dupe`, `de-dupe-eq`, and `expand`.
 
-`de-dupe` takes a persistent data structure, `pds`, and it returns a hash-map, which maps "tokens" (ids) to duplicated sub-nodes. The item with token `cache-0` represents the root of `pds`.
+`de-dupe` takes a persistent data structure, `pds`, and it returns a hash-map, which maps "tokens" (ids) to duplicated sub-nodes. The item with token `de-dupe.cache/cache-0` represents the root of `pds`.
 
-Having used `de-dupe`, you are expected to then serialise the the hash-map using whatever method makes sense to your usecase - perhaps [transit](https://github.com/cognitect/transit-cljs); or serilization with `edn`.  So `de-dupe` is a pre-processor for use before transit.
+Having used `de-dupe`, you are expected to then serialise the hash-map using whatever method makes sense to your use case - perhaps [transit](https://github.com/cognitect/transit-cljs), or serialization with `edn`. So `de-dupe` is a pre-processor for use before transit.
 
 Later, `expand` can be used to reverse the process - you give it a hash-map and it reforms the original, sharing and all. 
 
@@ -29,7 +29,7 @@ Add this dependency to your project.clj
 
 Then add this requirement to your cljs file:
 ```
-(:require [de-dupe.core :refer [de-dupe expand]])
+(:require [de-dupe.core :refer [de-dupe de-dupe-eq expand]])
 ```
 
 The default behaviour is to only recognize duplicates when they compare
@@ -39,7 +39,7 @@ with `identical?`
 (def compressed (de-dupe some-data))
 ;  if you now compare 
 ;  (count (prn-str compressed)) and (count (prn-str some-data))
-;  you will see the degree of comparision
+;  you will see the degree of compression
 
 ;  to recover your original data
 (def some-data2 (expand compressed))
@@ -50,7 +50,7 @@ If you want to de-dupe items that are not identical (i.e the same object referen
 (def compressed (de-dupe-eq some-data))
 ;  if you now compare 
 ;  (count (prn-str compressed)) and (count (prn-str some-data))
-;  you will see the degree of comparision it will be greater than de-dupe
+;  you will see the degree of compression; it will be greater than de-dupe
 
 ;  to recover your original data
 (def some-data2 (expand compressed))
@@ -62,13 +62,13 @@ This Library is ok for speed at the moment but can maybe can benefit from more o
 
 Hash seems to take a big chunk of time but if we use the ECMA 6 (Harmony) (js/Map.)
 which tests by identity, the time taken does not reduce. This may be because the 
-number of elements in the map increases. As this implementation uses js/Map you will need to run it on a modern browser (Chrome, IE 10, Firefox). The browser will only need to implement the Map.set() and Map.get() methods.
+number of elements in the map increases. As this implementation uses `js/Map`, you will need to run it on a JavaScript runtime which implements `Map.has`, `Map.get`, and `Map.set`.
 
 ## Limitations
 
-* This implementation can only cache things that can have meta-data attached to them (lists, sets, vectors, maps).
+* This implementation can only cache things that can have metadata attached to them during compression (lists, sets, vectors, maps).
 * This implementation caches everthing it can, even if the value is only used once it will be cached, which means that the decompression phase will always take longer than it should.
-* This implementation by default will consider two objects as different if (identical? x y) returns false. This is to save time computing the hash of the objects to check for equality. Use de-dupe/create-eq-cache for de-duplication for non-identical structures.
+* This implementation by default will consider two objects as different if `(identical? x y)` returns false. This is to save time computing hashes of objects to check for equality. Use `de-dupe-eq` for de-duplication of equal but non-identical structures.
 
 ## Implementation details
 
@@ -77,29 +77,33 @@ The result hash-map also contains a represenation of the root note of the `pds`.
 
 This implementation uses a special version of clojure.walk which keeps track of both the original form (or more correctly that returned from the inner function), and the newly modified form from the outer function.
 
-This makes it possible in the prewalk phase (stepping down the tree from root to leaf) to cache all the forms in a js/Map (from now on referred to as the 'values' cache, this is mutable). In addition the key generated for the values cache (itself just a cljs symbol) is added to the metadata of the form. 
+This makes it possible in the prewalk phase (stepping down the tree from root to leaf) to cache all the forms in a `js/Map` (from now on referred to as the values cache, this is mutable). In addition, the generated cache key is added to the metadata of the form while compression is running.
 
 If there is a cache 'hit' on the values cache, in this phase the form will be replaced by the cache key that is found and the algorithm will not continue to walk down the structure.
 
 On the way back up the tree the algorithm will begin to construct the 'compressed' cache. This is the cache where the value for each cache key itself contains cache keys. This compressed cache is constructed as the outer function will return the cache key for each value which is found by examining the metadata attached to the object on the way down.
 
-Finally the top level compressed value is returned and assigned to the cache as cache-0.
+Finally the top level compressed value is returned and assigned to the cache as `de-dupe.cache/cache-0`. Cache keys are namespaced symbols so they survive normal printed serialization.
 
 ## Testing 
 
 This project comes with unit tests and benchmark tests on random data.
 
-To run the unit tests with a browser
+To run the unit tests non-interactively with Node:
 
-    >lein cljsbuild once test-dev
+    >clojure -M:test
 
-Then open resources/index_dev.html in a browser and open the javascript console to see the results
+or:
 
-To run the benchmarks with a browser
+    >npm test
 
-    >lein cljsbuild once bench
+Leiningen users can run the same test path with:
 
-Then open resources/index_bench.html in a browser and open the javascript console to see the results
+    >lein test
+
+To run the benchmark with Node:
+
+    >npm run bench
 
 
 ## License

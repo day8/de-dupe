@@ -1,4 +1,4 @@
-(ns de-dupe.test.core
+(ns de-dupe.bench
   (:require [de-dupe.core :as dd]))
 
 (enable-console-print!)
@@ -31,5 +31,5 @@
 
 (print "******* about to decompress *******")
 (time
-  (def round-tripped (expand cache)))
+  (def round-tripped (dd/expand cache)))
 (print "******* finished decompress ******")

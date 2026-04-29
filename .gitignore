@@ -4,6 +4,8 @@ pom.xml
 /classes/
 /out/
 /target/
+.cljs_node_repl/
+.cpcache/
 .lein-deps-sum
 .lein-repl-history
 .lein-plugins/

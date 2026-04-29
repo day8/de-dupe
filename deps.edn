@@ -1,0 +1,18 @@
+{:paths ["src"]
+ :deps {org.clojure/clojurescript {:mvn/version "1.11.132"}}
+ :aliases
+ {:compile-test
+  {:extra-paths ["test"]
+   :main-opts ["-m" "cljs.main"
+               "--target" "node"
+               "--output-to" "target/test/de-dupe-test.js"
+               "--compile" "de-dupe.test.core"]}
+  :test
+  {:extra-paths ["test"]
+   :main-opts ["-m" "de-dupe.test-runner"]}
+  :compile-bench
+  {:extra-paths ["bench"]
+   :main-opts ["-m" "cljs.main"
+               "--target" "node"
+               "--output-to" "target/bench/de-dupe-bench.js"
+               "--compile" "de-dupe.bench"]}}}
