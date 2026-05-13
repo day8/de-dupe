@@ -25,7 +25,6 @@ jobs:
       - uses: DeLaGuardo/setup-clojure@ada62bb3282a01a296659d48378b812b8e097360 # 13.2
         with:
           cli: latest
-          lein: latest
 
       - name: Cache Clojure deps
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -34,19 +33,19 @@ jobs:
             ~/.m2/repository
             ~/.gitlibs
             ~/.deps.clj
-          key: ${{ runner.os }}-clj-${{ hashFiles('deps.edn', 'project.clj') }}
+          key: ${{ runner.os }}-clj-${{ hashFiles('deps.edn', 'build.clj') }}
           restore-keys: |
             ${{ runner.os }}-clj-
 
-      - name: Verify tag matches project version
+      - name: Verify tag matches build.clj version
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          PROJ_VERSION=$(lein project-version 2>/dev/null | tail -1)
-          if [ "$TAG" != "$PROJ_VERSION" ]; then
-            echo "::error::Tag ($TAG) does not match project version ($PROJ_VERSION). Bump project.clj first."
+          BUILD_VERSION=$(grep -E '^\(def version "' build.clj | sed -E 's/^\(def version "([^"]+)".*/\1/')
+          if [ "$TAG" != "$BUILD_VERSION" ]; then
+            echo "::error::Tag ($TAG) does not match build.clj version ($BUILD_VERSION). Bump build.clj first."
             exit 1
           fi
-          echo "Tag $TAG matches project version $PROJ_VERSION ✓"
+          echo "Tag $TAG matches build.clj version $BUILD_VERSION ✓"
 
       - name: Run tests
         run: clojure -M:test
@@ -55,4 +54,4 @@ jobs:
         env:
           CLOJARS_USERNAME: ${{ secrets.CLOJARS_USERNAME }}
           CLOJARS_PASSWORD: ${{ secrets.CLOJARS_PASSWORD }}
-        run: lein deploy clojars
+        run: clojure -T:build deploy

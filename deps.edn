@@ -15,4 +15,9 @@
    :main-opts ["-m" "cljs.main"
                "--target" "node"
                "--output-to" "target/bench/de-dupe-bench.js"
-               "--compile" "de-dupe.bench"]}}}
+               "--compile" "de-dupe.bench"]}
+  :build
+  {:deps {io.github.clojure/tools.build {:git/tag "v0.10.13"
+                                         :git/sha "ae52edf"}
+          slipset/deps-deploy           {:mvn/version "0.2.3"}}
+   :ns-default build}}}
