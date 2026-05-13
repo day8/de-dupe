@@ -1,5 +1,11 @@
 # de-dupe
 
+[![Clojars Project](https://img.shields.io/clojars/v/day8/de-dupe.svg)](https://clojars.org/day8/de-dupe)
+[![Test](https://github.com/day8/de-dupe/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/day8/de-dupe/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](licence.txt)
+
+Efficient serialization of persistent data structures that use structural sharing. Round-trips preserve `identical?` across the wire. **Clojure + ClojureScript** since 0.3.0.
+
 # The Problem
 
 Persistent Data Structures use structural sharing to create an efficient in-memory representation, but these same structures can be a problem to serialize/deserialize. 
@@ -20,17 +26,43 @@ Having used `de-dupe`, you are expected to then serialise the hash-map using wha
 
 Later, `expand` can be used to reverse the process - you give it a hash-map and it reforms the original, sharing and all. 
 
+## When does this library help?
+
+This library exists for **round-trip structural-sharing preservation**, not byte-level compression. If your inputs are small or have little sharing, you don't need it — and the output will often be *larger* than the input, because each extracted sub-structure adds a small amount of cache-key overhead.
+
+The win is on **large structures with heavy sharing**, where the same sub-tree appears many times. A few worked examples:
+
+* **Small input, no sharing** — `{:a 1 :b 2 :c 3}`. Output is larger than input. The overhead of the cache-map wrapper exceeds any duplicate-elimination win. Don't use the library here.
+* **Vector of 100 copies of the same map** — `(vec (repeat 100 {:user "alice" :role :admin}))`. Output is dramatically smaller (typically 50×+) because the shared map is stored once and referenced by token elsewhere.
+* **Real-world re-frame2 app-db over the wire** — `pair2-mcp` (a re-frame2 debugging tool) measures ~89% wire-payload reduction on a typical Reagent app's app-db, where reactions, route data, and lookup tables share substructure heavily.
+
+A reasonable rule of thumb: if your data is under a few KB and you haven't deliberately built it with `assoc` chains that share parents, don't reach for this library. If your data is a non-trivial app-db, a large reactive graph, or anything where you can `identical?`-match repeated sub-trees, the win compounds quickly.
+
+The other reason to use it — even when bytes are similar — is that `expand` rebuilds the original sharing on the receiving side, so `identical?` survives the round trip. Plain `pr-str`/`read-string` loses that.
+
 ## Usage
 
-Add this dependency to your project.clj
-```
-[de-dupe "0.2.2"]
+Add the dependency.
+
+**Leiningen / project.clj:**
+```clojure
+[day8/de-dupe "0.3.0"]
 ```
 
-Then add this requirement to your cljs file:
+**deps.edn:**
+```clojure
+day8/de-dupe {:mvn/version "0.3.0"}
+```
+
+Then add this requirement to your Clojure or ClojureScript file:
 ```
 (:require [de-dupe.core :refer [de-dupe de-dupe-eq expand]])
 ```
+
+As of `0.3.0` the source is `.cljc` and runs on both ClojureScript and
+JVM Clojure. The algorithm is identical on both platforms; the only
+platform-specific bit is the mutable hash-bucket store used during
+compression (`js/Map` on CLJS, `java.util.HashMap` on JVM).
 
 The default behaviour is to only recognize duplicates when they compare
 with `identical?`
@@ -60,7 +92,9 @@ If you want to de-dupe items that are not identical (i.e the same object referen
 
 The implementation chooses smaller serialized output and faster expansion over the fastest possible compression. It first identifies repeated structures so unique child values can stay inline, and expansion memoizes cache entries so each one is rebuilt once. The consequence of these tradeoffs is much smaller output and much faster `expand`, but slower compression. Run `npm run bench` to see the current size ratios and timings.
 
-As this implementation uses `js/Map`, you will need to run it on a JavaScript runtime which implements `Map.has`, `Map.get`, and `Map.set`.
+On ClojureScript, the implementation uses `js/Map`, so you will need a
+JavaScript runtime which implements `Map.get` and `Map.set`. On JVM
+Clojure, the equivalent role is played by `java.util.HashMap`.
 
 ## Limitations
 
