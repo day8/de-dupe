@@ -152,6 +152,113 @@
       (is (identical? (:1 x2-after) (:2 x2-after)))
       (is (identical? (:1 x2-after) (get-in x2-after [:3 :a 0]))))))
 
+;; -- Edge cases --------------------------------------------------------------
+;;
+;; These are deliberately tiny shapes that have historically tripped walk-
+;; based algorithms: nil at the root, empties, single-element collections,
+;; and primitives. The library inlines these (they aren't repeated, and
+;; primitives aren't `cachable?`), but they MUST round-trip cleanly.
+
+(deftest test-edge-empties-and-primitives
+  (testing "nil round-trips"
+    (is (round-trip-test nil)))
+  (testing "empty collections round-trip"
+    (is (round-trip-test []))
+    (is (round-trip-test {}))
+    (is (round-trip-test #{}))
+    (is (round-trip-test '())))
+  (testing "single-element collections round-trip"
+    (is (round-trip-test [:x]))
+    (is (round-trip-test {:a 1}))
+    (is (round-trip-test #{:x}))
+    (is (round-trip-test '(:x))))
+  (testing "primitives round-trip"
+    (is (round-trip-test 42))
+    (is (round-trip-test 3.14))
+    (is (round-trip-test "string"))
+    (is (round-trip-test :keyword))
+    (is (round-trip-test 'symbol))
+    (is (round-trip-test true))
+    (is (round-trip-test false))))
+
+(deftest test-set-round-trip
+  (testing "sets round-trip, including sets with shared sub-structures"
+    (let [shared [1 2 3]
+          value #{[shared] [shared shared] [:other]}
+          after (round-trip value)]
+      (is (= value after))
+      (is (set? after)))))
+
+(deftest test-sorted-variants-round-trip
+  (testing "sorted-map round-trips and preserves key order"
+    (let [sm (sorted-map :a 1 :b 2 :c 3)
+          after (round-trip sm)]
+      (is (= sm after))
+      ;; key order: the algorithm rebuilds collections via `(into (empty form) ...)`
+      ;; so sorted-map-ness MUST survive. If this regresses, expand returns a
+      ;; plain hash-map and the assertion below fails on CLJS, or `keys` order
+      ;; drifts on JVM.
+      (is (= (keys sm) (keys after)))))
+  (testing "sorted-set round-trips and preserves element order"
+    (let [ss (sorted-set 3 1 4 1 5 9 2 6)
+          after (round-trip ss)]
+      (is (= ss after))
+      (is (= (seq ss) (seq after))))))
+
+(deftest test-deeply-nested-round-trip
+  (testing "deeply nested vectors survive round-trip"
+    ;; 200 levels deep — well past anything reasonable, but shallow enough
+    ;; to avoid stack overflow on both runtimes.
+    (let [deep (reduce (fn [acc i] [i acc]) :leaf (range 200))]
+      (is (round-trip-test deep))))
+  (testing "deeply nested maps survive round-trip"
+    (let [deep (reduce (fn [acc i] {:k i :down acc}) {:leaf true} (range 100))]
+      (is (round-trip-test deep)))))
+
+(deftest test-wide-collection-round-trip
+  (testing "wide vector round-trips"
+    (is (round-trip-test (vec (range 1000)))))
+  (testing "wide map round-trips"
+    (is (round-trip-test (into {} (for [i (range 500)] [i (str i)])))))
+  (testing "wide set round-trips"
+    (is (round-trip-test (set (range 500))))))
+
+(deftest test-platform-parity-shape
+  "Same input must produce the same compressed shape on every platform.
+   We pin the shape by checking that:
+   (a) the cache has a deterministic count,
+   (b) cache-0 is the root and references the inner cache-id,
+   (c) the inner value is the shared sub-structure verbatim.
+   If platform-specific iteration order ever leaks into key assignment,
+   one of these assertions trips and we know to investigate."
+  (let [shared [1 2 3]
+        value  [shared shared shared]
+        cache  (de-dupe value)]
+    (is (= 2 (count cache)) "two cache entries: root + one shared element")
+    (is (= [(make-cache-element 1)
+            (make-cache-element 1)
+            (make-cache-element 1)]
+           (get cache (make-cache-element 0)))
+        "root holds three references to the same cache-id")
+    (is (= shared (get cache (make-cache-element 1)))
+        "the cache-id resolves to the shared sub-structure")))
+
+(deftest test-quoted-and-symbol-forms
+  (testing "quoted list shapes round-trip without their elements becoming cache tokens"
+    (is (round-trip-test '(a b c)))
+    (is (round-trip-test '[a b c]))
+    ;; A symbol whose namespace is the cache namespace but whose NAME doesn't
+    ;; match the cache-N convention is not a cache element. Conversely, a bare
+    ;; `cache-1` symbol (no namespace) is data and survives a round-trip.
+    (is (round-trip-test 'cache-1))
+    (is (round-trip-test '[cache-1 cache-2 cache-3]))))
+
+;; Cycles are NOT supported. The algorithm walks the value with side-prewalk;
+;; a cyclic structure would never terminate. Persistent Clojure collections
+;; cannot natively express cycles anyway (you'd need a mutable reference),
+;; so this is a non-issue for the intended use case (wire-boundary dedup
+;; of immutable values from pair2-mcp and story-mcp).
+
 #?(:cljs
    (defn -main [& _args]
      (let [summary (run-tests 'de-dupe.test.core)]
