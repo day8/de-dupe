@@ -22,9 +22,15 @@ It provides `de-dupe`, `de-dupe-eq`, and `expand`.
 
 `de-dupe` takes a persistent data structure, `pds`, and it returns a hash-map, which maps "tokens" (ids) to duplicated sub-nodes. The item with token `de-dupe.cache/cache-0` represents the root of `pds`.
 
-Having used `de-dupe`, you are expected to then serialise the hash-map using whatever method makes sense to your use case - perhaps [transit](https://github.com/cognitect/transit-cljs), or serialization with `edn`. So `de-dupe` is a pre-processor for use before transit.
+The output of `de-dupe` is plain Clojure data — a hash-map of token → sub-tree. Serialise it with whatever transport your stack already speaks: [transit](https://github.com/cognitect/transit-cljs) for structural fidelity, EDN for human-readability, JSON over fetch/websocket for the browser. On the receiver, deserialise back to data, then `expand` to recover the original structure with all sharing intact.
 
-Later, `expand` can be used to reverse the process - you give it a hash-map and it reforms the original, sharing and all. 
+```clojure
+;; sender
+(-> some-data de-dupe transit/write)
+
+;; receiver
+(-> wire-bytes transit/read expand)
+```
 
 ## When does this library help?
 
