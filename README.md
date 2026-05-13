@@ -1,5 +1,11 @@
 # de-dupe
 
+[![Clojars Project](https://img.shields.io/clojars/v/day8/de-dupe.svg)](https://clojars.org/day8/de-dupe)
+[![Test](https://github.com/day8/de-dupe/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/day8/de-dupe/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](licence.txt)
+
+Efficient serialization of persistent data structures that use structural sharing. Round-trips preserve `identical?` across the wire. **Clojure + ClojureScript** since 0.3.0.
+
 # The Problem
 
 Persistent Data Structures use structural sharing to create an efficient in-memory representation, but these same structures can be a problem to serialize/deserialize. 
@@ -22,9 +28,16 @@ Later, `expand` can be used to reverse the process - you give it a hash-map and 
 
 ## Usage
 
-Add this dependency to your project.clj
+Add the dependency.
+
+**Leiningen / project.clj:**
+```clojure
+[day8/de-dupe "0.3.0"]
 ```
-[de-dupe "0.3.0"]
+
+**deps.edn:**
+```clojure
+day8/de-dupe {:mvn/version "0.3.0"}
 ```
 
 Then add this requirement to your Clojure or ClojureScript file:
