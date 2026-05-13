@@ -1,7 +1,7 @@
 # de-dupe
 
 [![Clojars Project](https://img.shields.io/clojars/v/day8/de-dupe.svg)](https://clojars.org/day8/de-dupe)
-[![Test](https://github.com/day8/de-dupe/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/day8/de-dupe/actions/workflows/test.yml)
+[![Test](https://github.com/day8/de-dupe/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/day8/de-dupe/actions/workflows/test.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](licence.txt)
 
 Efficient serialization of persistent data structures that use structural sharing. Round-trips preserve `identical?` across the wire. **Clojure + ClojureScript** since 0.3.0.

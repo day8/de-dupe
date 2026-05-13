@@ -18,6 +18,6 @@
                "--compile" "de-dupe.bench"]}
   :build
   {:deps {io.github.clojure/tools.build {:git/tag "v0.10.13"
-                                         :git/sha "ae52edf"}
+                                         :git/sha "ae52edfedef4ca72e699e9c86abfe0940e97dc26"}
           slipset/deps-deploy           {:mvn/version "0.2.3"}}
    :ns-default build}}}
