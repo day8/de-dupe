@@ -24,13 +24,18 @@ Later, `expand` can be used to reverse the process - you give it a hash-map and 
 
 Add this dependency to your project.clj
 ```
-[de-dupe "0.2.2"]
+[de-dupe "0.3.0"]
 ```
 
-Then add this requirement to your cljs file:
+Then add this requirement to your Clojure or ClojureScript file:
 ```
 (:require [de-dupe.core :refer [de-dupe de-dupe-eq expand]])
 ```
+
+As of `0.3.0` the source is `.cljc` and runs on both ClojureScript and
+JVM Clojure. The algorithm is identical on both platforms; the only
+platform-specific bit is the mutable hash-bucket store used during
+compression (`js/Map` on CLJS, `java.util.HashMap` on JVM).
 
 The default behaviour is to only recognize duplicates when they compare
 with `identical?`
@@ -60,7 +65,9 @@ If you want to de-dupe items that are not identical (i.e the same object referen
 
 The implementation chooses smaller serialized output and faster expansion over the fastest possible compression. It first identifies repeated structures so unique child values can stay inline, and expansion memoizes cache entries so each one is rebuilt once. The consequence of these tradeoffs is much smaller output and much faster `expand`, but slower compression. Run `npm run bench` to see the current size ratios and timings.
 
-As this implementation uses `js/Map`, you will need to run it on a JavaScript runtime which implements `Map.has`, `Map.get`, and `Map.set`.
+On ClojureScript, the implementation uses `js/Map`, so you will need a
+JavaScript runtime which implements `Map.get` and `Map.set`. On JVM
+Clojure, the equivalent role is played by `java.util.HashMap`.
 
 ## Limitations
 
